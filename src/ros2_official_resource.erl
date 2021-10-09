@@ -23,7 +23,7 @@ init(Type, _RebarState) ->
 lock(AppInfo, CustomState) ->
   %% Extract info such as {Type, ResourcePath, ...} as declared
   %% in rebar.config
-  SourceTuple = rebar_app_info:source(AppInfo),
+  SourceTuple = rebar_git_resource:lock(AppInfo, CustomState),
   %% Annotate and modify the source tuple to make it absolutely
   %% and indeniably unambiguous (for example, with git this means
   %% transforming a branch name into an immutable ref)
@@ -34,17 +34,13 @@ lock(AppInfo, CustomState) ->
 download(TmpDir, AppInfo, CustomState) ->
         %% Extract info such as {Type, ResourcePath, ...} as declared
         %% in rebar.config
-        SourceTuple = rebar_app_info:source(AppInfo),
+        rebar_git_resource:download(TmpDir, AppInfo, CustomState),
         %% Download the resource defined by SourceTuple, which should be
         %% an OTP application or library, into TmpDir
         ok.
   
 download(TmpDir, AppInfo, CustomState, RebarState) ->
-        %% Extract info such as {Type, ResourcePath, ...} as declared
-        %% in rebar.config
-        SourceTuple = rebar_app_info:source(AppInfo),
-        %% Download the resource defined by SourceTuple, which should be
-        %% an OTP application or library, into TmpDir
+        download(TmpDir, AppInfo, CustomState),
         ok.
 make_vsn(Dir) ->
   %% Extract a version number from the application. This is useful
@@ -52,8 +48,7 @@ make_vsn(Dir) ->
   %% which means it should be derived from the build information. For
   %% the `git' resource, this means looking for the last tag and adding
   %% commit-specific information
-
-  {plain, "0.0.0"}.
+  rebar_git_resource:make_vsn(Dir).
   
 
 needs_update(AppInfo, ResourceState) ->
@@ -64,4 +59,4 @@ needs_update(AppInfo, ResourceState) ->
   %% Check if the copy in the current install matches
   %% the defined value in the source tuple. On a conflict,
   %% return `true', otherwise `false'
-  false.
+  rebar_git_resource:needs_update(AppInfo, ResourceState).
