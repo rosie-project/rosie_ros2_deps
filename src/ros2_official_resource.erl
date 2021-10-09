@@ -1,4 +1,4 @@
--module(rebar_path_resource).
+-module(ros2_official_resource).
 -behaviour(rebar_resource ).
 -export([init/2,
          lock/2,
@@ -23,40 +23,45 @@ init(Type, _RebarState) ->
 lock(AppInfo, CustomState) ->
   %% Extract info such as {Type, ResourcePath, ...} as declared
   %% in rebar.config
-  SourceTuple = rebar_app_info:source(AppInfo)),
+  SourceTuple = rebar_app_info:source(AppInfo),
   %% Annotate and modify the source tuple to make it absolutely
   %% and indeniably unambiguous (for example, with git this means
   %% transforming a branch name into an immutable ref)
-  ...
+
   %% Return the unambiguous source tuple
-  ModifiedSource.
+  ModifiedSource= SourceTuple.
 
+download(TmpDir, AppInfo, CustomState) ->
+        %% Extract info such as {Type, ResourcePath, ...} as declared
+        %% in rebar.config
+        SourceTuple = rebar_app_info:source(AppInfo),
+        %% Download the resource defined by SourceTuple, which should be
+        %% an OTP application or library, into TmpDir
+        ok.
+  
 download(TmpDir, AppInfo, CustomState, RebarState) ->
-  %% Extract info such as {Type, ResourcePath, ...} as declared
-  %% in rebar.config
-  SourceTuple = rebar_app_info:source(AppInfo)),
-  %% Download the resource defined by SourceTuple, which should be
-  %% an OTP application or library, into TmpDir
-  ...
-  ok.
-
-make_vsn(Dir, ResourceState) ->
+        %% Extract info such as {Type, ResourcePath, ...} as declared
+        %% in rebar.config
+        SourceTuple = rebar_app_info:source(AppInfo),
+        %% Download the resource defined by SourceTuple, which should be
+        %% an OTP application or library, into TmpDir
+        ok.
+make_vsn(Dir) ->
   %% Extract a version number from the application. This is useful
   %% when defining the version in the .app.src file as `{version, Type}',
   %% which means it should be derived from the build information. For
   %% the `git' resource, this means looking for the last tag and adding
   %% commit-specific information
-  ...
-  {plain, "0.1.2"}.
+
+  {plain, "0.0.0"}.
   
 
 needs_update(AppInfo, ResourceState) ->
   %% Extract the Source tuple if needed
   SourceTuple = rebar_app_info:source(AppInfo),
   %% Base version in the current file
-  OriginalVsn = rebar_app_info:original_vsn(AppInfo)
+  OriginalVsn = rebar_app_info:original_vsn(AppInfo),
   %% Check if the copy in the current install matches
   %% the defined value in the source tuple. On a conflict,
   %% return `true', otherwise `false'
-  ...,
-    Bool.
+  false.
