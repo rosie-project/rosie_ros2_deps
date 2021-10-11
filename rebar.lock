@@ -1,1 +1,8 @@
-[].
+{"1.2.0",
+[{<<"yamerl">>,{pkg,<<"yamerl">>,<<"0.8.1">>},0}]}.
+[
+{pkg_hash,[
+ {<<"yamerl">>, <<"07DA13FFA1D8E13948943789665C62CCD679DFA7B324A4A2ED3149DF17F453A4">>}]},
+{pkg_hash_ext,[
+ {<<"yamerl">>, <<"96CB30F9D64344FED0EF8A92E9F16F207DE6C04DFFF4F366752CA79F5BCEB23F">>}]}
+].

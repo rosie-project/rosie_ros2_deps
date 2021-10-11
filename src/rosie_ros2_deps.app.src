@@ -1,10 +1,11 @@
-{application, rosie_dep_manager,
- [{description, "An OTP library"},
+{application, rosie_ros2_deps,
+ [{description, "A rebar plugin to fetch ros2 packages and repos for ROSIE"},
   {vsn, "0.1.0"},
   {registered, []},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    yamerl
    ]},
   {env,[]},
   {modules, []},
