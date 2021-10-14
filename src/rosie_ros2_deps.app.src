@@ -1,16 +1,10 @@
-{application, rosie_ros2_deps,
+{application,
+ rosie_ros2_deps,
  [{description, "A rebar plugin to fetch ros2 packages and repos for ROSIE"},
   {vsn, "0.1.0"},
   {registered, []},
-  {applications,
-   [kernel,
-    stdlib,
-    inets,
-    ssl
-   ]},
-  {env,[]},
+  {applications, [kernel, stdlib, inets, ssl]},
+  {env, []},
   {modules, []},
-
   {licenses, ["Apache 2.0"]},
-  {links, []}
- ]}.
+  {links, []}]}.
