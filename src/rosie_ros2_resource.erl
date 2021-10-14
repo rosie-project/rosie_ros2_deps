@@ -2,9 +2,8 @@
 -behaviour(rebar_resource_v2).
 -export([init/2,
          lock/2,
-         download/4, download/3,
+         download/4,
          needs_update/2,
-         make_vsn/1,
          make_vsn/2]).
 
 -include_lib("xmerl/include/xmerl.hrl").
@@ -12,22 +11,21 @@
 % -define(FOXY_DISTRO, "rosdistro/foxy/distribution.yaml").
 
 download_distro() ->
-  {ok, Download} = rebar_utils:sh("wget -q -O /dev/stdout https://raw.githubusercontent.com/ros/rosdistro/master/foxy/distribution.yaml",
-    [{use_stdout, false}, {debug_abort_on_error, "FUCK canot retrieve distro file from github.. :("}]),
-  application:start(yamerl),
-  yamerl_constr:string(Download).
+  case httpc:request(get, {"https://raw.githubusercontent.com/ros/rosdistro/master/foxy/distribution.yaml", []}, 
+        [{ssl, [{verify ,verify_peer},{cacerts,certifi:cacerts()}, 
+              {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}]}], []) of
+    {ok, {_,_,Body}} -> application:start(yamerl),
+                        yamerl_constr:string(Body);
+    {error, Reason}  ->  {error, Reason}
+  end.
   
 
 %% Initialize the custom dep resource plugin
 init(Type, _RebarState) ->
-  CustomState = #{foxy_distro => download_distro()},
-  % CustomState=#{},
-  Resource = rebar_resource_v2:new(
-       Type,         % type tag such as 'git' or 'hg'
-       ?MODULE,      % this callback module
-       CustomState   % anything you want to carry around for next calls
-  ),
-  {ok, Resource}.
+  case download_distro() of
+    {error, Reason} -> rebar_api:error("Failed to gather info for ros distro, Reason: ~p\n", [Reason]);
+    Distro -> {ok, rebar_resource_v2:new( Type, ?MODULE,  #{foxy_distro => Distro} )}
+  end.
 
 lock(AppInfo, CustomState) ->
   %io:format("WHAT LOCK?!\n"),
@@ -43,14 +41,14 @@ lock(AppInfo, CustomState) ->
   %% Return the unambiguous source tuple
   rebar_app_info:source(AppInfo).
 
-download(TmpDir, AppInfo, RebarState) ->
-  io:format("WHAT ???????????????\n"),
-        %% Extract info such as {Type, ResourcePath, ...} as declared
-        %% in rebar.config
-        %rebar_git_resource:download(TmpDir, modify_app_info_for_git(AppInfo,CustomState), RebarState),
-        %% Download the resource defined by SourceTuple, which should be
-        %% an OTP application or library, into TmpDir
-        ok.
+% download(TmpDir, AppInfo, RebarState) ->
+%   io:format("WHAT ???????????????\n"),
+%         %% Extract info such as {Type, ResourcePath, ...} as declared
+%         %% in rebar.config
+%         %rebar_git_resource:download(TmpDir, modify_app_info_for_git(AppInfo,CustomState), RebarState),
+%         %% Download the resource defined by SourceTuple, which should be
+%         %% an OTP application or library, into TmpDir
+%         ok.
 
 download(TmpDir, AppInfo, RebarState, CustomState) ->
   case modify_app_info_for_git(AppInfo,CustomState) of
@@ -63,14 +61,14 @@ download(TmpDir, AppInfo, RebarState, CustomState) ->
       end
     end.
 
-make_vsn(Dir) ->
-  io:format("WHAT vsn1\n"),
-  %% Extract a version number from the application. This is useful
-  %% when defining the version in the .app.src file as `{version, Type}',
-  %% which means it should be derived from the build information. For
-  %% the `git' resource, this means looking for the last tag and adding
-  %% commit-specific information
-  rebar_git_resource:make_vsn(Dir).
+% make_vsn(Dir) ->
+%   io:format("WHAT vsn1\n"),
+%   %% Extract a version number from the application. This is useful
+%   %% when defining the version in the .app.src file as `{version, Type}',
+%   %% which means it should be derived from the build information. For
+%   %% the `git' resource, this means looking for the last tag and adding
+%   %% commit-specific information
+%   rebar_git_resource:make_vsn(Dir).
 
 make_vsn(Dir,Arg) ->
   io:format("WHAT vsn2\n"),
