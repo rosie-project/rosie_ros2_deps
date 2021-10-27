@@ -12,7 +12,7 @@ download_distro() ->
     case
         httpc:request(
             get,
-            {"https://raw.githubusercontent.com/ros/rosdistro/master/foxy/distribution.yaml", []},
+            {"https://raw.githubusercontent.com/ros/rosdistro/master/galactic/distribution.yaml", []},
             [
                 {ssl, [
                     {verify, verify_peer},
@@ -38,7 +38,7 @@ init(Type, _RebarState) ->
         {error, Reason} ->
             rebar_api:error("Failed to gather info for ros distro, Reason: ~p\n", [Reason]);
         Distro ->
-            {ok, rebar_resource_v2:new(Type, ?MODULE, #{foxy_distro => Distro})}
+            {ok, rebar_resource_v2:new(Type, ?MODULE, #{galactic_distro => Distro})}
     end.
 
 lock(AppInfo, CustomState) ->
@@ -126,7 +126,7 @@ get_source_url_from_repo_tuple({_, [_, _, {"source", ATTR_L}, _]}) ->
     URL.
 
 find_repo_for_pkg(Pkg, CustomState) ->
-    [[_, {"repositories", REPOS}, _, _]] = maps:get(foxy_distro, CustomState),
+    [[_, {"repositories", REPOS}, _, _]] = maps:get(galactic_distro, CustomState),
     %io:format("~p\n",[REPOS]),
     % io:format("~p\n",[Pkg]),
     case [R || R <- REPOS, repo_description_contains_pkg(Pkg, R)] of
@@ -147,7 +147,7 @@ find_repo_for_pkg(Pkg, CustomState) ->
 
 modify_app_info_for_git(AppInfo, CustomState) ->
     case rebar_app_info:source(AppInfo) of
-        {ros2, foxy} ->
+        {ros2, galactic} ->
             ok;
         {ros2, D} ->
             rebar_api:warn("Ros Distro ~p not supported... but should be fine...", [D])
@@ -196,7 +196,7 @@ add_deps(Dir, AppName, CustomState) ->
     PkgNames = [X#xmlText.value || X <- PkgDependencies],
     PkgNamesInDistro = [N || N <- PkgNames, find_repo_for_pkg(N, CustomState) /= not_found],
     %io:format("~p",[PkgNames]),
-    string:join(["{" ++ N ++ ",{ros2, foxy}}" || N <- PkgNamesInDistro], ",\n\t").
+    string:join(["{" ++ N ++ ",{ros2, galactic}}" || N <- PkgNamesInDistro], ",\n\t").
 
 convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
     AppName = binary_to_list(rebar_app_info:name(AppInfo)),
