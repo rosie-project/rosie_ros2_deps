@@ -192,7 +192,7 @@ add_deps(Dir, AppName, CustomState) ->
     {Xml, _} = xmerl_scan:string(RemovedModelLine),
     Content = Xml#xmlElement.content,
     PkgDependencies =
-        lists:flatten([X#xmlElement.content || X <- Content, (X#xmlElement.name == depend) or (X#xmlElement.name == run_depend)]),
+        lists:flatten([X#xmlElement.content || X <- Content, (X#xmlElement.name == depend) or (X#xmlElement.name == build_depend)]),
     PkgNames = [X#xmlText.value || X <- PkgDependencies],
     PkgNamesInDistro = [N || N <- PkgNames, find_repo_for_pkg(N, CustomState) /= not_found],
     %io:format("~p",[PkgNames]),
