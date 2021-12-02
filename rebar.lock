@@ -1,8 +1,11 @@
 {"1.2.0",
-[{<<"yamerl">>,{pkg,<<"yamerl">>,<<"0.8.1">>},0}]}.
+[{<<"certifi">>,{pkg,<<"certifi">>,<<"2.8.0">>},0},
+ {<<"yamerl">>,{pkg,<<"yamerl">>,<<"0.8.1">>},0}]}.
 [
 {pkg_hash,[
+ {<<"certifi">>, <<"D4FB0A6BB20B7C9C3643E22507E42F356AC090A1DCEA9AB99E27E0376D695EBA">>},
  {<<"yamerl">>, <<"07DA13FFA1D8E13948943789665C62CCD679DFA7B324A4A2ED3149DF17F453A4">>}]},
 {pkg_hash_ext,[
+ {<<"certifi">>, <<"6AC7EFC1C6F8600B08D625292D4BBF584E14847CE1B6B5C44D983D273E1097EA">>},
  {<<"yamerl">>, <<"96CB30F9D64344FED0EF8A92E9F16F207DE6C04DFFF4F366752CA79F5BCEB23F">>}]}
 ].
