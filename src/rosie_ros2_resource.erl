@@ -146,19 +146,22 @@ find_repo_for_pkg(Pkg, CustomState) ->
     end.
 
 modify_app_info_for_git(AppInfo, CustomState) ->
-    case rebar_app_info:source(AppInfo) of
-        {ros2, galactic} ->
-            ok;
+    Branch = case rebar_app_info:source(AppInfo) of
+        {ros2, galactic, {branch, B}} -> 
+            B;
+        {ros2, galactic} -> 
+            default;
         {ros2, D} ->
             rebar_api:warn("Ros Distro ~p not supported... but should be fine...", [D])
     end,
-    % io:format("YO\n"),
-    case find_repo_for_pkg(binary_to_list(rebar_app_info:name(AppInfo)), CustomState) of
-        not_found ->
+    REPO = find_repo_for_pkg(binary_to_list(rebar_app_info:name(AppInfo)), CustomState),
+    case {REPO,Branch} of
+        {not_found,_} ->
             skip_dependancy;
-        %io:format(URL),
-        URL ->
-            rebar_app_info:source(AppInfo, {git, URL, {branch, "master"}})
+        {URL, default} ->
+            rebar_app_info:source(AppInfo, {git, URL});
+        {URL, Branch} ->
+            rebar_app_info:source(AppInfo, {git, URL, {branch, Branch}})
     end.
 
 % is_pkg_in_currend_repo(Dir,AppName) ->
