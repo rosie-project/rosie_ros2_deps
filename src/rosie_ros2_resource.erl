@@ -6,7 +6,6 @@
 
 -include_lib("xmerl/include/xmerl.hrl").
 
-% -define(FOXY_DISTRO, "rosdistro/foxy/distribution.yaml").
 
 download_distro() ->
     case
@@ -270,11 +269,11 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
             "\t\tstdlib"
             ++
             case length(DependencyApps) > 0 of
-                true -> (",\n\t"++DependencyApps);
-                false -> "\n"
+                true -> (",\n\t\t"++DependencyApps);
+                false -> ""
             end
             ++
-            "]},\n"
+            "\n\t]},\n"
             "\t{env,[]},\n"
             "\t{modules, []},\n"
             "\t{licenses, [\"Apache 2.0\"]},\n"

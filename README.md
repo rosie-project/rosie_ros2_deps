@@ -15,12 +15,12 @@ How to add a ros package to your rebar3 deps
 
     % rebar.config
 
-    {deps, [ { ros_pkg_name, {ros2, foxy}} ]}.
+    {deps, [ { ros_pkg_name, {ros2, galactic}} ]}.
 
 How It Works
 -----
 
-- The pluging will search for a ros package for the foxy distribution that matches the app name.
+- The pluging will search for a ros package for the galactic distribution that matches the app name.
 
 - If it finds one, will fetch it's repository.
 
