@@ -26,13 +26,14 @@ How It Works
 
 - It will extract from the repository all the ros interfaces contained in the package directory; than it will parse its package.xml file to discover its dependancies.
 
-- Eventual dependencies will be listed as above in the erlang.config file of the newly generated app.
+- Eventual dependencies will be listed as above in the erlang.config file of the newly generated app. They will also be part of the .app.src to be included in releases.
 
 - The generated app will use this same plugin so that rebar can chain this operations recursively to satisfy any dependancy tree.
 
 - If one dep has a dependancy not listed in the distribution the missing dep is ignored and not added in the rebar.config file; a warning is printed.
 
-Third party Software
+- The rebar.config of the generated app will use the rosie_interface_compiler, this will trigger a compilation of all ros interfaces in the app directory.
+
 -----
 
 To parse the .yaml file containing all ros2 packages for a distribution this plugin depends on yamerl -> <https://github.com/yakaz/yamerl>
