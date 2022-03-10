@@ -40,7 +40,7 @@ init(Type, _RebarState) ->
             {ok, rebar_resource_v2:new(Type, ?MODULE, #{galactic_distro => Distro})}
     end.
 
-lock(AppInfo, CustomState) ->
+lock(AppInfo, _CustomState) ->
     %io:format("WHAT LOCK?!\n"),
     %% Extract info such as {Type, ResourcePath, ...} as declared
     %% in rebar.config
@@ -94,12 +94,12 @@ make_vsn(Dir, Arg) ->
     %% commit-specific information
     rebar_git_resource:make_vsn(Dir, Arg).
 
-needs_update(AppInfo, ResourceState) ->
+needs_update(_AppInfo, _ResourceState) ->
     %io:format("WHAT update\n"),
     %% Extract the Source tuple if needed
-    SourceTuple = rebar_app_info:source(AppInfo),
+    %   SourceTuple = rebar_app_info:source(AppInfo),
     %% Base version in the current file
-    OriginalVsn = rebar_app_info:original_vsn(AppInfo),
+    %   OriginalVsn = rebar_app_info:original_vsn(AppInfo),
     %% Check if the copy in the current install matches
     %% the defined value in the source tuple. On a conflict,
     %% return `true', otherwise `false'
@@ -108,7 +108,7 @@ needs_update(AppInfo, ResourceState) ->
 
 repo_matches_pkg(Pkg, {Pkg, _}) ->
     true;
-repo_matches_pkg(_, {Pkg, _}) ->
+repo_matches_pkg(_, {_Pkg, _}) ->
     false.
 
 repo_description_contains_pkg(
@@ -219,8 +219,8 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
             "]}.\n"
             "\n"
             "\n"
-            "{plugins, [{rosie_ros2_deps,\"*.\",{git, \"https://github.com/ziopio/rosie_ros2_deps.git\",{branch, \"master\"}}},\n"
-            "        {rosie_interface_compiler,\"*.\",{git, \"https://github.com/ziopio/rosie_interface_compiler.git\",{branch, \"master\"}}}]}.\n"
+            "{plugins, [{rosie_ros2_deps,\"*.\",{git, \"https://github.com/rosie-project/rosie_ros2_deps.git\",{branch, \"master\"}}},\n"
+            "        {rosie_interface_compiler,\"*.\",{git, \"https://github.com/rosie-project/rosie_interface_compiler.git\",{branch, \"master\"}}}]}.\n"
             "\n"
             "{provider_hooks, [\n"
             "    {pre, [{compile, {rosie, compile}}]},\n"
