@@ -6,6 +6,7 @@
 
 -include_lib("xmerl/include/xmerl.hrl").
 
+-define(LABEL, "ROSiE: ").
 
 download_distro() ->
     case
@@ -35,7 +36,7 @@ download_distro() ->
 init(Type, _RebarState) ->
     case download_distro() of
         {error, Reason} ->
-            rebar_api:error("Failed to gather info for ros distro, Reason: ~p\n", [Reason]);
+            rebar_api:error(?LABEL"Failed to gather info for ros distro, Reason: ~p\n", [Reason]);
         Distro ->
             {ok, rebar_resource_v2:new(Type, ?MODULE, #{galactic_distro => Distro})}
     end.
@@ -63,7 +64,7 @@ lock(AppInfo, _CustomState) ->
 download(TmpDir, AppInfo, RebarState, CustomState) ->
     case modify_app_info_for_git(AppInfo, CustomState) of
         skip_dependancy ->
-            rebar_api:warn("Skipping this dependancy", []),
+            rebar_api:warn(?LABEL"Skipping this dependancy", []),
             ok;
         ModAppInfo ->
             case rebar_git_resource:download(TmpDir, ModAppInfo, RebarState, CustomState) of
@@ -71,7 +72,7 @@ download(TmpDir, AppInfo, RebarState, CustomState) ->
                     convert_repo_to_rebar3_project(TmpDir, AppInfo, CustomState),
                     ok;
                 {error, Reason} ->
-                    rebar_api:error("Git dep failed with error: ~p", [Reason]),
+                    rebar_api:error(?LABEL"Git dep failed with error: ~p", [Reason]),
                     {error, Reason}
             end
     end.
@@ -137,6 +138,7 @@ find_repo_for_pkg(Pkg, CustomState) ->
                     get_source_url_from_repo_tuple(R);
                 [] ->
                     rebar_api:warn(
+                        ?LABEL
                         "Package ~p could not be found in the the downloaded official distribution.yaml",
                         [Pkg]
                     ),
@@ -151,7 +153,7 @@ modify_app_info_for_git(AppInfo, CustomState) ->
         {ros2, galactic} -> 
             default;
         {ros2, D} ->
-            rebar_api:warn("Ros Distro ~p not supported... but should be fine...", [D])
+            rebar_api:warn(?LABEL"Ros Distro ~p not supported... but should be fine...", [D])
     end,
     REPO = find_repo_for_pkg(binary_to_list(rebar_app_info:name(AppInfo)), CustomState),
     case {REPO,Branch} of
@@ -202,11 +204,11 @@ find_deps(Dir, AppName, CustomState) ->
 
 convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
     AppName = binary_to_list(rebar_app_info:name(AppInfo)),
-    rebar_api:info("Processing ~p", [AppName]),
+    rebar_api:info(?LABEL"Processing ~p", [AppName]),
 
     %adding rebar.config
     FilePath = filename:join([Dir, "rebar.config"]),
-    rebar_api:info("Adding rebar.config for ~p", [rebar_app_info:name(AppInfo)]),
+    %rebar_api:info(?LABEL"Adding rebar.config for ~p", [rebar_app_info:name(AppInfo)]),
     Dependencies = find_deps(Dir, AppName, CustomState),
     Deps = string:join(["{" ++ A ++ ",{ros2, galactic}}" || A <- Dependencies], ",\n\t"),
     file:write_file(
@@ -252,7 +254,7 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
     % writing basic app.src file
     LibFileName = filename:join([Dir, "src", AppName ++ ".app.src"]),
     DependencyApps = string:join(Dependencies, ",\n\t"),
-    rebar_api:info("Adding ~p", [AppName ++ ".app.src"]),
+    %rebar_api:info(?LABEL"Adding ~p", [AppName ++ ".app.src"]),
     filelib:ensure_dir(LibFileName),
     file:write_file(
         LibFileName,
@@ -300,10 +302,9 @@ move_interface_files(Dir, AppName) ->
     [move_file_to_dir(F, filename:join([Dir, "srv"])) || F <- SrvFiles].
 
 move_file_to_dir(Filename, Dst) ->
-    rebar_api:info("Moving ~p", [Filename]),
+    rebar_api:info(?LABEL"Moving interface ~p", [filename:basename(Filename)]),
     Name = filename:basename(Filename),
     NewFilename = filename:join([Dst, Name]),
-    rebar_api:info("Dst:  ~p", [NewFilename]),
     filelib:ensure_dir(NewFilename),
     rebar_file_utils:mv(Filename, NewFilename).
 
