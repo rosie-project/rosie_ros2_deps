@@ -7,6 +7,7 @@
 -include_lib("xmerl/include/xmerl.hrl").
 
 -define(LABEL, "ROSiE: ").
+-define(ROS_PKG_PREFIX(AppName), "ros2 pkg prefix " ++ AppName).
 
 download_distro() ->
     case
@@ -62,6 +63,7 @@ lock(AppInfo, _CustomState) ->
 %         ok.
 
 download(TmpDir, AppInfo, RebarState, CustomState) ->
+<<<<<<< HEAD
     case modify_app_info_for_git(AppInfo, CustomState) of
         skip_dependancy ->
             rebar_api:warn(?LABEL"Skipping this dependancy", []),
@@ -75,6 +77,28 @@ download(TmpDir, AppInfo, RebarState, CustomState) ->
                     rebar_api:error(?LABEL"Git dep failed with error: ~p", [Reason]),
                     {error, Reason}
             end
+=======
+    Result =
+        case rebar_app_info:source(AppInfo) of
+            {ros2, local} ->
+                get_local_ros_pkg(TmpDir, AppInfo);
+            {ros2, galactic, {branch, B}} ->
+                modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, B);
+            {ros2, galactic} ->
+                modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, default);
+            {ros2, D} ->
+                rebar_api:warn(?LABEL "Ros Distro ~p not supported... but should be fine...", [D]),
+                skip_dep
+        end,
+    case Result of
+        ok ->
+            convert_repo_to_rebar3_project(TmpDir, AppInfo, CustomState);
+        {error, _} ->
+            ok;
+        _ ->
+            rebar_api:warn(?LABEL "Skipping this dependency", []),
+            ok
+>>>>>>> cb4f102... Get local ros2 package when {ros2, local} is set
     end.
 
 % make_vsn(Dir) ->
@@ -146,6 +170,7 @@ find_repo_for_pkg(Pkg, CustomState) ->
             end
     end.
 
+<<<<<<< HEAD
 modify_app_info_for_git(AppInfo, CustomState) ->
     Branch = case rebar_app_info:source(AppInfo) of
         {ros2, galactic, {branch, B}} -> 
@@ -163,6 +188,39 @@ modify_app_info_for_git(AppInfo, CustomState) ->
             rebar_app_info:source(AppInfo, {git, URL});
         {URL, Branch} ->
             rebar_app_info:source(AppInfo, {git, URL, {branch, Branch}})
+=======
+get_local_ros_pkg(TmpDir, AppInfo) ->
+    AppName = binary_to_list(rebar_app_info:name(AppInfo)),
+    Cmd = ?ROS_PKG_PREFIX(AppName),
+    PkgDir = string:trim(os:cmd(Cmd)),
+    Source = filename:join([PkgDir, "share", AppName]),
+    case filelib:is_dir(Source) of
+        true ->
+            rebar_file_utils:cp_r([Source], TmpDir);
+        _ ->
+            Reason = io_lib:format(?LABEL "Package ~p not found", [AppName]),
+            rebar_api:error(Reason),
+            {error, Reason}
+    end.
+
+modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, Branch) ->
+    REPO = find_repo_for_pkg(binary_to_list(rebar_app_info:name(AppInfo)), CustomState),
+    ModAppInfo =
+        case {REPO, Branch} of
+            {not_found, _} ->
+                skip_dep;
+            {URL, default} ->
+                rebar_app_info:source(AppInfo, {git, URL});
+            {URL, Branch} ->
+                rebar_app_info:source(AppInfo, {git, URL, {branch, Branch}})
+        end,
+    case rebar_git_resource:download(TmpDir, ModAppInfo, RebarState, CustomState) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            rebar_api:error(?LABEL "Git dep failed with error: ~p", [Reason]),
+            {error, Reason}
+>>>>>>> cb4f102... Get local ros2 package when {ros2, local} is set
     end.
 
 % is_pkg_in_currend_repo(Dir,AppName) ->
