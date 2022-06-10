@@ -79,23 +79,32 @@ source_definition_from_lock_file(AppInfo) ->
     end.
 
 download(TmpDir, AppInfo, RebarState, CustomState) ->
+    Source = source_definition_from_lock_file(AppInfo),
+    Distro =
+        case Source of
+            {ros2, D} -> D;
+            {ros2, D, _} -> D;
+            _ -> undefined
+        end,
     Result =
-        case source_definition_from_lock_file(AppInfo) of
+        case Source of
             {ros2, local} ->
                 get_local_ros_pkg(TmpDir, AppInfo);
             {ros2, galactic, {branch, B}} ->
                 modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, B);
             {ros2, galactic} ->
                 modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, default);
-            {ros2, D} ->
-                rebar_api:warn(?LABEL "Ros Distro ~p not supported... but should be fine...", [D]),
+            {ros2, Other} ->
+                rebar_api:warn(?LABEL "Ros Distro ~p not supported... but should be fine...", [
+                    Other
+                ]),
                 skip_dep;
             _ ->
                 {erorr, ""}
         end,
     case Result of
         ok ->
-            convert_repo_to_rebar3_project(TmpDir, AppInfo, CustomState);
+            convert_repo_to_rebar3_project(TmpDir, AppInfo, CustomState, atom_to_list(Distro));
         {error, _} ->
             ok;
         _ ->
@@ -261,7 +270,7 @@ parse_package_xml(String) ->
     {Xml, _} = xmerl_scan:string(RemovedModelLine),
     Xml.
 
-convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
+convert_repo_to_rebar3_project(Dir, AppInfo, CustomState, Distro) ->
     AppName = binary_to_list(rebar_app_info:name(AppInfo)),
     rebar_api:info(?LABEL "Processing ~p", [AppName]),
 
@@ -271,7 +280,7 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
     Xml = get_package_xml(Dir, AppName),
     Dependencies = find_deps(Xml, CustomState),
     Version = get_package_version(Xml),
-    Deps = string:join(["{" ++ A ++ ",{ros2, galactic}}" || A <- Dependencies], ",\n\t"),
+    Deps = string:join(["{" ++ A ++ ",{ros2, " ++ Distro ++ "}}" || A <- Dependencies], ",\n\t"),
     file:write_file(
         FilePath,
         %"++add_deps(Dir, AppName,rebar_app_info:source(AppInfo)) ++"
