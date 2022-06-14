@@ -108,7 +108,7 @@ download(TmpDir, AppInfo, RebarState, CustomState) ->
         {error, _} ->
             ok;
         _ ->
-            rebar_api:warn(?LABEL "Skipping this dependency", []),
+            rebar_api:warn(?LABEL "Skipping this dependency ~p", [Source]),
             ok
     end.
 % make_vsn(Dir) ->
@@ -199,6 +199,7 @@ get_local_ros_pkg(TmpDir, AppInfo) ->
     Source = filename:join([PkgDir, "share", AppName]),
     case filelib:is_dir(Source) of
         true ->
+            rebar_api:info(?LABEL "Local dependency copying from ~p", [Source]),
             rebar_file_utils:cp_r([Source], TmpDir);
         _ ->
             Reason = io_lib:format(?LABEL "Package ~p not found", [AppName]),
@@ -246,6 +247,7 @@ find_deps(Xml, CustomState) ->
          || X <- Content, (X#xmlElement.name == depend) or (X#xmlElement.name == build_depend)
         ]),
     PkgNames = [X#xmlText.value || X <- PkgDependencies],
+    rebar_api:info(?LABEL "Processing ~p", [PkgNames]),
     PkgNamesInDistro = [N || N <- PkgNames, find_repo_for_pkg(N, CustomState) /= not_found],
     PkgNamesInDistro.
 
@@ -273,14 +275,18 @@ parse_package_xml(String) ->
 convert_repo_to_rebar3_project(Dir, AppInfo, CustomState, Distro) ->
     AppName = binary_to_list(rebar_app_info:name(AppInfo)),
     rebar_api:info(?LABEL "Processing ~p", [AppName]),
-
-    %adding rebar.config
+    InterfaceFiles = find_interface_files(Dir, AppName),
     FilePath = filename:join([Dir, "rebar.config"]),
-    %rebar_api:info(?LABEL"Adding rebar.config for ~p", [rebar_app_info:name(AppInfo)]),
     Xml = get_package_xml(Dir, AppName),
-    Dependencies = find_deps(Xml, CustomState),
     Version = get_package_version(Xml),
+    Dependencies =
+        case InterfaceFiles of
+            % Not forward dependencies when there aren't interface files
+            [[], [], []] -> [];
+            _ -> find_deps(Xml, CustomState)
+        end,
     Deps = string:join(["{" ++ A ++ ",{ros2, " ++ Distro ++ "}}" || A <- Dependencies], ",\n\t"),
+    %adding rebar.config
     file:write_file(
         FilePath,
         %"++add_deps(Dir, AppName,rebar_app_info:source(AppInfo)) ++"
@@ -308,7 +314,7 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState, Distro) ->
         true ->
             ok;
         false ->
-            move_interface_files(Dir, AppName)
+            move_interface_files(Dir, InterfaceFiles)
     end,
     % finally delete the sub directory
     {ok, Listing} = file:list_dir(Dir),
@@ -352,7 +358,7 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState, Distro) ->
             "]}.\n"
     ).
 
-move_interface_files(Dir, AppName) ->
+find_interface_files(Dir, AppName) ->
     % moving interface files
     ActionFiles =
         rebar_utils:find_files(
@@ -366,6 +372,10 @@ move_interface_files(Dir, AppName) ->
         rebar_utils:find_files(
             filename:join([Dir, AppName, "srv"]), ".*\\.srv\$"
         ),
+    [ActionFiles, MsgFiles, SrvFiles].
+
+move_interface_files(Dir, [ActionFiles, MsgFiles, SrvFiles]) ->
+    % moving interface files
     [move_file_to_dir(F, filename:join([Dir, "action"])) || F <- ActionFiles],
     [move_file_to_dir(F, filename:join([Dir, "msg"])) || F <- MsgFiles],
     [move_file_to_dir(F, filename:join([Dir, "srv"])) || F <- SrvFiles].
