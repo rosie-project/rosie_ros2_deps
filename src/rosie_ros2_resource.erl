@@ -7,12 +7,15 @@
 -include_lib("xmerl/include/xmerl.hrl").
 
 -define(LABEL, "ROSiE: ").
+-define(ROS_PKG_PREFIX(AppName), "ros2 pkg prefix " ++ AppName).
+-define(ROS_PKG_XML(AppName), "ros2 pkg xml " ++ AppName).
 
 download_distro() ->
     case
         httpc:request(
             get,
-            {"https://raw.githubusercontent.com/ros/rosdistro/master/galactic/distribution.yaml", []},
+            {"https://raw.githubusercontent.com/ros/rosdistro/master/galactic/distribution.yaml",
+                []},
             [
                 {ssl, [
                     {verify, verify_peer},
@@ -36,7 +39,7 @@ download_distro() ->
 init(Type, _RebarState) ->
     case download_distro() of
         {error, Reason} ->
-            rebar_api:error(?LABEL"Failed to gather info for ros distro, Reason: ~p\n", [Reason]);
+            rebar_api:error(?LABEL "Failed to gather info for ros distro, Reason: ~p\n", [Reason]);
         Distro ->
             {ok, rebar_resource_v2:new(Type, ?MODULE, #{galactic_distro => Distro})}
     end.
@@ -50,7 +53,13 @@ lock(AppInfo, _CustomState) ->
     %% and indeniably unambiguous (for example, with git this means
     %% transforming a branch name into an immutable ref)
     %% Return the unambiguous source tuple
-    rebar_app_info:source(AppInfo).
+    Version = list_to_binary(rebar_app_info:vsn(AppInfo)),
+    AppName = rebar_app_info:name(AppInfo),
+    case source_definition_from_lock_file(AppInfo) of
+        {ros2, Any} -> {ros2, AppName, Version, Any};
+        {ros2, Any, Branch} -> {ros2, AppName, Version, Any, Branch};
+        R -> R
+    end.
 
 % download(TmpDir, AppInfo, RebarState) ->
 %   io:format("WHAT ???????????????\n"),
@@ -61,22 +70,47 @@ lock(AppInfo, _CustomState) ->
 %         %% an OTP application or library, into TmpDir
 %         ok.
 
-download(TmpDir, AppInfo, RebarState, CustomState) ->
-    case modify_app_info_for_git(AppInfo, CustomState) of
-        skip_dependancy ->
-            rebar_api:warn(?LABEL"Skipping this dependancy", []),
-            ok;
-        ModAppInfo ->
-            case rebar_git_resource:download(TmpDir, ModAppInfo, RebarState, CustomState) of
-                ok ->
-                    convert_repo_to_rebar3_project(TmpDir, AppInfo, CustomState),
-                    ok;
-                {error, Reason} ->
-                    rebar_api:error(?LABEL"Git dep failed with error: ~p", [Reason]),
-                    {error, Reason}
-            end
+source_definition_from_lock_file(AppInfo) ->
+    case rebar_app_info:source(AppInfo) of
+        {ros2, _AppName, _Version, local} -> {ros2, local};
+        {ros2, _AppName, _Version, galactic, Any} -> {ros2, galactic, Any};
+        {ros2, _AppName, _Version, galactic} -> {ros2, galactic};
+        Other -> Other
     end.
 
+download(TmpDir, AppInfo, RebarState, CustomState) ->
+    Source = source_definition_from_lock_file(AppInfo),
+    Distro =
+        case Source of
+            {ros2, D} -> D;
+            {ros2, D, _} -> D;
+            _ -> undefined
+        end,
+    Result =
+        case Source of
+            {ros2, local} ->
+                get_local_ros_pkg(TmpDir, AppInfo);
+            {ros2, galactic, {branch, B}} ->
+                modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, B);
+            {ros2, galactic} ->
+                modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, default);
+            {ros2, Other} ->
+                rebar_api:warn(?LABEL "Ros Distro ~p not supported... but should be fine...", [
+                    Other
+                ]),
+                skip_dep;
+            _ ->
+                {erorr, ""}
+        end,
+    case Result of
+        ok ->
+            convert_repo_to_rebar3_project(TmpDir, AppInfo, CustomState, atom_to_list(Distro));
+        {error, _} ->
+            ok;
+        _ ->
+            rebar_api:warn(?LABEL "Skipping this dependency ~p", [Source]),
+            ok
+    end.
 % make_vsn(Dir) ->
 %   io:format("WHAT vsn1\n"),
 %   %% Extract a version number from the application. This is useful
@@ -95,17 +129,29 @@ make_vsn(Dir, Arg) ->
     %% commit-specific information
     rebar_git_resource:make_vsn(Dir, Arg).
 
-needs_update(_AppInfo, _ResourceState) ->
-    %io:format("WHAT update\n"),
+needs_update(AppInfo, _ResourceState) ->
+    % io:format("WHAT update\n"),
     %% Extract the Source tuple if needed
-    %   SourceTuple = rebar_app_info:source(AppInfo),
-    %% Base version in the current file
-    %   OriginalVsn = rebar_app_info:original_vsn(AppInfo),
-    %% Check if the copy in the current install matches
-    %% the defined value in the source tuple. On a conflict,
-    %% return `true', otherwise `false'
-    %rebar_git_resource:needs_update(AppInfo, ResourceState),
-    false.
+    case source_definition_from_lock_file(AppInfo) of
+        {ros2, local} ->
+            AppName = binary_to_list(rebar_app_info:name(AppInfo)),
+            Res = os:cmd(?ROS_PKG_XML(AppName)),
+            Xml = parse_package_xml(Res),
+            PackageVersion = get_package_version(Xml),
+            InstalledVersion = rebar_app_info:vsn(AppInfo),
+            PackageVersion =/= InstalledVersion;
+        _ ->
+            false
+    end.
+
+%% Base version in the current file
+%   OriginalVsn = rebar_app_info:original_vsn(AppInfo),
+%% Check if the copy in the current install matches
+%% the defined value in the source tuple. On a conflict,
+%% return `true', otherwise `false'
+%rebar_git_resource:needs_update(AppInfo, ResourceState),
+% io:format("Resource state ~p\n", [ResourceState]),
+% false.
 
 repo_matches_pkg(Pkg, {Pkg, _}) ->
     true;
@@ -146,23 +192,42 @@ find_repo_for_pkg(Pkg, CustomState) ->
             end
     end.
 
-modify_app_info_for_git(AppInfo, CustomState) ->
-    Branch = case rebar_app_info:source(AppInfo) of
-        {ros2, galactic, {branch, B}} -> 
-            B;
-        {ros2, galactic} -> 
-            default;
-        {ros2, D} ->
-            rebar_api:warn(?LABEL"Ros Distro ~p not supported... but should be fine...", [D])
-    end,
+get_local_ros_pkg(TmpDir, AppInfo) ->
+    AppName = binary_to_list(rebar_app_info:name(AppInfo)),
+    Cmd = ?ROS_PKG_PREFIX(AppName),
+    PkgDir = string:trim(os:cmd(Cmd)),
+    Source = filename:join([PkgDir, "share", AppName]),
+    case filelib:is_dir(Source) of
+        true ->
+            rebar_api:info(?LABEL "Local dependency copying from ~p", [Source]),
+            rebar_file_utils:cp_r([Source], TmpDir);
+        _ ->
+            Reason = io_lib:format(?LABEL "Package ~p not found", [AppName]),
+            rebar_api:error(Reason),
+            {error, Reason}
+    end.
+
+get_package_version(Xml) ->
+    [#xmlText{value = Version}] = xmerl_xpath:string("/package/version/text()", Xml),
+    Version.
+
+modify_app_info_for_git(TmpDir, AppInfo, RebarState, CustomState, Branch) ->
     REPO = find_repo_for_pkg(binary_to_list(rebar_app_info:name(AppInfo)), CustomState),
-    case {REPO,Branch} of
-        {not_found,_} ->
-            skip_dependancy;
-        {URL, default} ->
-            rebar_app_info:source(AppInfo, {git, URL});
-        {URL, Branch} ->
-            rebar_app_info:source(AppInfo, {git, URL, {branch, Branch}})
+    ModAppInfo =
+        case {REPO, Branch} of
+            {not_found, _} ->
+                skip_dep;
+            {URL, default} ->
+                rebar_app_info:source(AppInfo, {git, URL});
+            {URL, Branch} ->
+                rebar_app_info:source(AppInfo, {git, URL, {branch, Branch}})
+        end,
+    case rebar_git_resource:download(TmpDir, ModAppInfo, RebarState, CustomState) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            rebar_api:error(?LABEL "Git dep failed with error: ~p", [Reason]),
+            {error, Reason}
     end.
 
 % is_pkg_in_currend_repo(Dir,AppName) ->
@@ -174,7 +239,19 @@ modify_app_info_for_git(AppInfo, CustomState) ->
 %     false -> "{"++AppName++",{ros2, \""++find_repo_for_pkg(AppName)++"\",{branch,\"master\"}}}"
 %   end.
 
-find_deps(Dir, AppName, CustomState) ->
+find_deps(Xml, CustomState) ->
+    Content = Xml#xmlElement.content,
+    PkgDependencies =
+        lists:flatten([
+            X#xmlElement.content
+         || X <- Content, (X#xmlElement.name == depend) or (X#xmlElement.name == build_depend)
+        ]),
+    PkgNames = [X#xmlText.value || X <- PkgDependencies],
+    rebar_api:info(?LABEL "Processing ~p", [PkgNames]),
+    PkgNamesInDistro = [N || N <- PkgNames, find_repo_for_pkg(N, CustomState) /= not_found],
+    PkgNamesInDistro.
+
+get_package_xml(Dir, AppName) ->
     PackageFile =
         case
             filelib:is_file(
@@ -186,31 +263,30 @@ find_deps(Dir, AppName, CustomState) ->
             false ->
                 filename:join([Dir, AppName, "package.xml"])
         end,
-
-    % parsing package.xml
-    % io:format(PackageFile++"\n"),
     {ok, String} = file:read_file(PackageFile),
+    parse_package_xml(binary_to_list(String)).
+
+parse_package_xml(String) ->
     {ok, MP} = re:compile("<\\?xml-model .*\n"),
-    RemovedModelLine = re:replace(binary_to_list(String), MP, "", [global, {return, list}]),
-
+    RemovedModelLine = re:replace(String, MP, "", [global, {return, list}]),
     {Xml, _} = xmerl_scan:string(RemovedModelLine),
-    Content = Xml#xmlElement.content,
-    PkgDependencies =
-        lists:flatten([X#xmlElement.content || X <- Content, (X#xmlElement.name == depend) or (X#xmlElement.name == build_depend)]),
-    PkgNames = [X#xmlText.value || X <- PkgDependencies],
-    PkgNamesInDistro = [N || N <- PkgNames, find_repo_for_pkg(N, CustomState) /= not_found],
-    %io:format("~p",[PkgNames]),
-    PkgNamesInDistro.
+    Xml.
 
-convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
+convert_repo_to_rebar3_project(Dir, AppInfo, CustomState, Distro) ->
     AppName = binary_to_list(rebar_app_info:name(AppInfo)),
-    rebar_api:info(?LABEL"Processing ~p", [AppName]),
-
-    %adding rebar.config
+    rebar_api:info(?LABEL "Processing ~p", [AppName]),
+    InterfaceFiles = find_interface_files(Dir, AppName),
     FilePath = filename:join([Dir, "rebar.config"]),
-    %rebar_api:info(?LABEL"Adding rebar.config for ~p", [rebar_app_info:name(AppInfo)]),
-    Dependencies = find_deps(Dir, AppName, CustomState),
-    Deps = string:join(["{" ++ A ++ ",{ros2, galactic}}" || A <- Dependencies], ",\n\t"),
+    Xml = get_package_xml(Dir, AppName),
+    Version = get_package_version(Xml),
+    Dependencies =
+        case InterfaceFiles of
+            % Not forward dependencies when there aren't interface files
+            [[], [], []] -> [];
+            _ -> find_deps(Xml, CustomState)
+        end,
+    Deps = string:join(["{" ++ A ++ ",{ros2, " ++ Distro ++ "}}" || A <- Dependencies], ",\n\t"),
+    %adding rebar.config
     file:write_file(
         FilePath,
         %"++add_deps(Dir, AppName,rebar_app_info:source(AppInfo)) ++"
@@ -238,7 +314,7 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
         true ->
             ok;
         false ->
-            move_interface_files(Dir, AppName)
+            move_interface_files(Dir, InterfaceFiles)
     end,
     % finally delete the sub directory
     {ok, Listing} = file:list_dir(Dir),
@@ -264,17 +340,16 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
             ",\n"
             "\t[{description, \"Generated app from ros2 pkg: " ++ AppName ++
             "\"},\n"
-            "\t{vsn, \"0.0.0\"},\n"
+            "\t{vsn, \"" ++ Version ++
+            "\"},\n"
             "\t{registered, []},\n"
             "\t{applications,\n"
             "\t\t[kernel,\n"
-            "\t\tstdlib"
-            ++
+            "\t\tstdlib" ++
             case length(DependencyApps) > 0 of
-                true -> (",\n\t\t"++DependencyApps);
+                true -> (",\n\t\t" ++ DependencyApps);
                 false -> ""
-            end
-            ++
+            end ++
             "\n\t]},\n"
             "\t{env,[]},\n"
             "\t{modules, []},\n"
@@ -283,7 +358,7 @@ convert_repo_to_rebar3_project(Dir, AppInfo, CustomState) ->
             "]}.\n"
     ).
 
-move_interface_files(Dir, AppName) ->
+find_interface_files(Dir, AppName) ->
     % moving interface files
     ActionFiles =
         rebar_utils:find_files(
@@ -297,12 +372,16 @@ move_interface_files(Dir, AppName) ->
         rebar_utils:find_files(
             filename:join([Dir, AppName, "srv"]), ".*\\.srv\$"
         ),
+    [ActionFiles, MsgFiles, SrvFiles].
+
+move_interface_files(Dir, [ActionFiles, MsgFiles, SrvFiles]) ->
+    % moving interface files
     [move_file_to_dir(F, filename:join([Dir, "action"])) || F <- ActionFiles],
     [move_file_to_dir(F, filename:join([Dir, "msg"])) || F <- MsgFiles],
     [move_file_to_dir(F, filename:join([Dir, "srv"])) || F <- SrvFiles].
 
 move_file_to_dir(Filename, Dst) ->
-    rebar_api:info(?LABEL"Moving interface ~p", [filename:basename(Filename)]),
+    rebar_api:info(?LABEL "Moving interface ~p", [filename:basename(Filename)]),
     Name = filename:basename(Filename),
     NewFilename = filename:join([Dst, Name]),
     filelib:ensure_dir(NewFilename),

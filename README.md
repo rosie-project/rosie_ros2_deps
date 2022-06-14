@@ -13,9 +13,17 @@ Build
 How to add a ros package to your rebar3 deps
 -----
 
+To fetch a ros package from this [list](https://raw.githubusercontent.com/ros/rosdistro/master/galactic/distribution.yaml): 
+
     % rebar.config
 
     {deps, [ { ros_pkg_name, {ros2, galactic}} ]}.
+
+To fetch a ros package local installed:
+
+    % rebar.config
+
+    {deps, [ { ros_pkg_name, {ros2, local}} ]}.
 
 How It Works
 -----
