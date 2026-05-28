@@ -1,3 +1,8 @@
+# IMPORTANT ⚠️
+
+This is repository is not maintained anymore. Please refer to https://github.com/stritzinger/rosie_ros2_deps for updates and contributions.
+
+
 rosie_ros2_deps
 =====
 
